@@ -1,4 +1,4 @@
-use std::{fs, path::Path};
+use std::{fs, io, path::Path};
 
 use typst::{
     diag::SourceDiagnostic,
@@ -8,6 +8,7 @@ use typst_as_lib::TypstEngine;
 
 // TODO: Change constants to FS-walk + config
 const site_base: &str = "./site";
+const static_files: &str = "./site/static";
 const template_base: &str = "./site/templates";
 const content_base: &str = "./site/content";
 const article_path: &str = "./site/content/article1/main.typ";
@@ -19,6 +20,10 @@ fn main() {
         .build();
     let src = Path::new(article_path);
     typst_to_html(&typst_engine, src);
+    let output_static = Path::new(output_base).join("static");
+    if let Err(err) = copy_dir(static_files, &output_static) {
+        eprintln!("couldn't copy output/static folder because of {err}");
+    }
 }
 
 fn typst_to_html(engine: &TypstEngine, filepath: &Path) {
@@ -28,9 +33,7 @@ fn typst_to_html(engine: &TypstEngine, filepath: &Path) {
         .to_str()
         .expect("filename not in unicode");
     let doc = engine.compile::<_, typst_html::HtmlDocument>(filename);
-    doc.warnings
-        .iter()
-        .for_each(|srcdiag| handle_source_diagnostic(srcdiag));
+    doc.warnings.iter().for_each(handle_source_diagnostic);
 
     match doc.output {
         Ok(document) => {
@@ -74,4 +77,18 @@ fn handle_source_diagnostic(diagnostic: &SourceDiagnostic) {
         .display();
     let hints = diagnostic.hints.join("\n");
     eprintln!("[{level}] {file} {message}\n{hints}")
+}
+
+fn copy_dir(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
+    fs::create_dir_all(&dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        if ty.is_dir() {
+            copy_dir(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        } else {
+            fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        }
+    }
+    Ok(())
 }

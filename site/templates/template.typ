@@ -6,7 +6,7 @@
     keywords: meta.tags,
   )
 
-  html.link(rel: "stylesheet", href: "./style.css")
+  html.link(rel: "stylesheet", href: "./static/style.css")
 
   html.main()[
     #html.article()[

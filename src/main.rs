@@ -6,18 +6,25 @@ use typst::{
 };
 use typst_as_lib::TypstEngine;
 
+// TODO: Change constants to FS-walk + config
+const site_base: &str = "./site";
+const template_base: &str = "./site/templates";
+const content_base: &str = "./site/content";
+const article_path: &str = "./site/content/article1/main.typ";
+const output_base: &str = "./rendered";
+
 fn main() {
     let typst_engine = TypstEngine::builder()
-        .with_file_system_resolver("./templates/")
+        .with_file_system_resolver(site_base)
         .build();
-    let src = Path::new("./templates/main.typ");
+    let src = Path::new(article_path);
     typst_to_html(&typst_engine, src);
 }
 
 fn typst_to_html(engine: &TypstEngine, filepath: &Path) {
     let filename = filepath
-        .file_name()
-        .expect("file path is root or a directory")
+        .strip_prefix(site_base)
+        .expect("file path is not under base dir")
         .to_str()
         .expect("filename not in unicode");
     let doc = engine.compile::<_, typst_html::HtmlDocument>(filename);
@@ -31,9 +38,21 @@ fn typst_to_html(engine: &TypstEngine, filepath: &Path) {
                 Ok(html_out) => html_out,
                 Err(_) => unreachable!("typst_html::html doesn't return error"),
             };
-            match fs::write(filepath.with_extension("html"), html) {
-                Ok(_) => (),
-                Err(html_err) => eprintln!("Failed to write html because of {html_err}"),
+            let output_path = Path::new(output_base).join(
+                filepath
+                    .strip_prefix(content_base)
+                    .expect("filepath must be under base dir"),
+            );
+            let output_parent = output_path.parent().expect("content base must exist");
+            match fs::create_dir_all(output_parent) {
+                Ok(_) => match fs::write(output_path.with_extension("html"), html) {
+                    Ok(_) => (),
+                    Err(html_err) => eprintln!("Failed to write html because of {html_err}"),
+                },
+                Err(err) => {
+                    let failed_path = output_parent.display();
+                    eprintln!("Failed to create {failed_path} because of {err}")
+                }
             }
         }
         Err(err) => println!("Failed because of TypstAsLibErr: {err}"),

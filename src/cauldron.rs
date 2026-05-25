@@ -13,7 +13,7 @@ use crate::util::{self, handle_source_diagnostic};
 pub struct CauldronInstance {
     pub config: Config,
     pub engine: TypstEngine,
-    pub link_maps: LinkMaps,
+    link_maps: LinkMaps,
 }
 
 #[derive(Clone, Deserialize)]

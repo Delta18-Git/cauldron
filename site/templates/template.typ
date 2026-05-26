@@ -1,46 +1,58 @@
 #let article(meta: dictionary) = body => {
   set document(
-    title: meta.title,
-    author: meta.author,
-    description: meta.description,
-    keywords: meta.tags,
+    title: meta.at("title", default: none),
+    author: meta.at("author", default: none),
+    description: meta.at("description", default: none),
+    keywords: meta.at("tags", default: none),
   )
 
   html.link(rel: "stylesheet", href: "../static/style.css")
 
+  html.nav()[
+    #html.a(href: "../posts/index.html")[Posts]
+    #text(" · ")
+    #html.a(href: "../tags/index.html")[Tags]
+  ]
+
   html.main()[
     #html.article()[
       #html.header()[
-        #if meta.title != none [
-          #html.h1()[#meta.title]
+        #let title = meta.at("title", default: none);
+        #if title != none [
+          #html.h1()[#title]
         ]
 
-        #if meta.author != () or meta.description != none [
+        #let author = meta.at("author", default: ());
+        #let desc = meta.at("description", default: none);
+        #if author != () or desc != none [
           #html.section()[
-            #if meta.author != () [
+            #if author != () [
               #html.address()[
-                #if type(meta.author) == array {
-                  meta.author.join(", ")
-                } else {
-                  meta.author
+                #{
+                  if type(author) == array {
+                    author.join(", ")
+                  } else {
+                    author
+                  }
                 }
               ]
             ]
-            #if meta.description != none [
-              #html.p()[#meta.description]
+            #if desc != none [
+              #html.p()[#desc]
             ]
           ]
         ]
 
-        #if meta.tags != () [
+        #let tags = meta.at("tags", default: ());
+        #if tags != () [
           #html.ul()[
-            #(
-              if type(meta.tags) == array {
-                meta.tags.map(t => html.li()[#t]).join()
+            #{
+              if type(tags) == array {
+                tags.map(t => html.li()[#html.a(href: "../tags/" + t + ".html")[#t]]).join()
               } else {
-                html.li()[#meta.tags]
+                html.li()[#html.a(href: "../tags/" + tags + ".html")[#tags]]
               }
-            )
+            }
           ]
         ]
       ]

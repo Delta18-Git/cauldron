@@ -15,6 +15,8 @@ fn main() {
         template_sub: String::from("templates"),
         content_sub: String::from("content"),
         output_base: PathBuf::from("./rendered"),
+        tags_template: Some(String::from("tag_index.typ")),
+        posts_template: Some(String::from("post_index.typ")),
         serve: false,
         host: String::new(),
         port: String::new(),
@@ -29,10 +31,13 @@ fn main() {
         eprintln!("{err}");
         return;
     }
-    if let Err(err) = cauldron.render_all() {
+    if let Err(err) = cauldron.render_recurse() {
         eprintln!("Error: {err}");
     };
-    if let Err(err) = cauldron.build_collection() {
+    if let Err(err) = cauldron.render_tags() {
+        eprintln!("Error: {err}");
+    };
+    if let Err(err) = cauldron.render_post_index() {
         eprintln!("Error: {err}");
     };
     if let Err(err) = cauldron.copy_static() {

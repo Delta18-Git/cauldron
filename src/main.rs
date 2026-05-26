@@ -19,17 +19,20 @@ fn main() {
         host: String::new(),
         port: String::new(),
     };
-    let cauldron = CauldronInstance::new(
+    let mut cauldron = CauldronInstance::new(
         config.clone(),
         TypstEngine::builder()
             .with_file_system_resolver(&config.site_base)
             .build(),
     );
-    let src = &config
-        .site_base
-        .join(&config.content_sub)
-        .join("article1/main.typ");
-    if let Err(err) = cauldron.render(src) {
+    if let Err(err) = cauldron.verify_structure() {
+        eprintln!("{err}");
+        return;
+    }
+    if let Err(err) = cauldron.render_all() {
+        eprintln!("Error: {err}");
+    };
+    if let Err(err) = cauldron.build_collection() {
         eprintln!("Error: {err}");
     };
     if let Err(err) = cauldron.copy_static() {

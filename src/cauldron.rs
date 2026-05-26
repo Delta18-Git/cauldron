@@ -1,24 +1,30 @@
 use std::{
     collections::HashMap,
-    io,
+    fs, io,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
 use serde::Deserialize;
+use typst::ecow::{EcoString, EcoVec};
 use typst_as_lib::TypstEngine;
+use walkdir::WalkDir;
 
-use crate::util::{self, handle_source_diagnostic};
+use crate::{
+    post::{Post, PostMeta},
+    util::{self, handle_source_diagnostic},
+};
 
 pub struct CauldronInstance {
     pub config: Config,
     pub engine: TypstEngine,
     link_maps: LinkMaps,
+    pub posts: HashMap<PathBuf, Post>,
 }
 
 #[derive(Clone, Deserialize)]
 pub struct Config {
-    pub site_base: PathBuf, // contains ./{static,templates,content}
+    pub site_base: PathBuf,
     pub static_sub: String,
     pub template_sub: String,
     pub content_sub: String,
@@ -29,9 +35,9 @@ pub struct Config {
 }
 
 struct LinkMaps {
-    permalinks: Arc<HashMap<String, String>>, // link -> permalink
-    shortlinks: Arc<HashMap<String, String>>, // short -> permalink
-    redirects: Arc<HashMap<String, String>>,
+    permalinks: HashMap<EcoString, EcoString>, // link -> permalink
+    shortlinks: HashMap<EcoString, EcoString>, // short -> permalink
+    redirects: HashMap<EcoString, EcoString>,
 }
 
 impl CauldronInstance {
@@ -40,14 +46,68 @@ impl CauldronInstance {
             config,
             engine,
             link_maps: LinkMaps {
-                permalinks: Arc::new(HashMap::new()),
-                shortlinks: Arc::new(HashMap::new()),
-                redirects: Arc::new(HashMap::new()),
+                permalinks: HashMap::new(),
+                shortlinks: HashMap::new(),
+                redirects: HashMap::new(),
             },
+            posts: HashMap::new(),
         }
     }
 
-    pub fn render(&self, filepath: &Path) -> Result<(), String> {
+    pub fn verify_structure(&self) -> Result<(), String> {
+        let config = &self.config;
+        for sub_dir in [
+            &config.content_sub,
+            &config.template_sub,
+            &config.static_sub,
+        ] {
+            match fs::exists(config.site_base.join(sub_dir)) {
+                Ok(ok) => {
+                    if !ok {
+                        Err(format!(
+                            "{}/ doesn't exist under {}",
+                            sub_dir,
+                            &config.site_base.display()
+                        ))?
+                    }
+                }
+                Err(err) => Err(format!(
+                    "Couldn't validate existence of {} {err}",
+                    &config.site_base.join(sub_dir).display(),
+                ))?,
+            }
+        }
+        Ok(())
+    }
+
+    pub fn render_all(&mut self) -> Result<(), String> {
+        for entry in WalkDir::new(&self.config.site_base.join(&self.config.content_sub))
+            .contents_first(true)
+            .into_iter()
+            .filter_entry(|e| {
+                e.file_type().is_dir()
+                    || e.file_name()
+                        .display()
+                        .to_string()
+                        .split_once(".")
+                        .unwrap_or_default()
+                        .1
+                        .eq_ignore_ascii_case("typ")
+            })
+        {
+            let entry = entry
+                .map_err(|err| format!("Couldn't yield directory entry during FS-Walk: {err}"))?;
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            self.render(entry.path())?;
+        }
+        Ok(())
+    }
+
+    pub fn render(&mut self, filepath: &Path) -> Result<(), String> {
+        let meta = self.parse_meta(filepath)?;
+        self.posts.insert(filepath.to_path_buf(), meta);
         let html = self.typst_to_html(filepath)?;
         let relative_path = filepath
             .strip_prefix(self.config.site_base.join(&self.config.content_sub))
@@ -82,9 +142,9 @@ impl CauldronInstance {
                 output_path.display()
             )
         })?;
-        std::fs::create_dir_all(output_parent)
+        fs::create_dir_all(output_parent)
             .map_err(|err| format!("Failed to create {}: {}", output_parent.display(), err))?;
-        std::fs::write(output_path.with_extension("html"), html)
+        fs::write(output_path.with_extension("html"), html)
             .map_err(|err| format!("Failed to write html: {err}"))?;
         Ok(())
     }

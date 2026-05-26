@@ -1,4 +1,4 @@
-use std::{io::Result, path::Path};
+use std::{fs, io::Result, path::Path};
 
 use typst::{
     diag::SourceDiagnostic,
@@ -6,14 +6,14 @@ use typst::{
 };
 
 pub fn copy_dir(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<()> {
-    std::fs::create_dir_all(&dst)?;
-    for entry in std::fs::read_dir(src)? {
+    fs::create_dir_all(&dst)?;
+    for entry in fs::read_dir(src)? {
         let entry = entry?;
         let ty = entry.file_type()?;
         if ty.is_dir() {
             copy_dir(entry.path(), dst.as_ref().join(entry.file_name()))?;
         } else {
-            std::fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+            fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
         }
     }
     Ok(())

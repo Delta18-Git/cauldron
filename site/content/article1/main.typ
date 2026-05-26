@@ -1,6 +1,5 @@
 #import "../../templates/template.typ": article
-#let meta = toml("./meta.toml")
-#show: article(meta: meta)
+#show: article(meta: toml("./meta.toml"))
 
 Hello hello $frac(1, 3)$
 
